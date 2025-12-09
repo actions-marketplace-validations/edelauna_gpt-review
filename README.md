@@ -19,18 +19,26 @@ This GitHub Action enables automatic code reviewing in your repository by sendin
     # The target branch for the git diff to run against.
     # Default: ${{ github.base_ref }}
     target_branch: ''
+
+    # List of comma seperated values for files to ignore as part of the review process.
+    ignore_files: ''
 ```
 <!-- end usage -->
+* [Example Usage Implementation](https://github.com/edelauna/discord-bot-ai/actions/runs/6128445766/workflow?pr=74#L10).
 
-Goto `files` sections of the PR to see annotations, along the lines of:
 
-![Screenshot 2023-09-06 165310](https://github.com/edelauna/gpt-review/assets/54631123/e37c4a7b-0172-461e-b016-347d7e0f3ccf)
+Goto `files` sections of the PR to see annotations, an [example of a PR with annotations](https://github.com/edelauna/discord-bot-ai/pull/74/files):
 
-![Screenshot 2023-09-06 171602](https://github.com/edelauna/gpt-review/assets/54631123/f9fd6771-5f1d-423c-8abb-ff56c9917888)
+![Screenshot 2023-09-10 105540](https://github.com/edelauna/gpt-review/assets/54631123/90d14a0e-5c56-4c33-9a8c-abcf29d8d104)
+
+![Screenshot 2023-09-10 105616](https://github.com/edelauna/gpt-review/assets/54631123/e0ea17c7-2c41-464a-aafe-7c4fc17df5b5)
+
 
 > [!NOTE]
 >
 > If there are no annotations, you can verify by checking the CI job logs to see if any `Notices` have been posted.
+>
+> For example [see logs of annotation here](https://github.com/edelauna/discord-bot-ai/actions/runs/6128445766/job/16635484534?pr=74#step:3:570).
 
 # License
 
@@ -40,8 +48,8 @@ The scripts and documentation in this project are released under the [MIT Licens
 # Limitations
 Github Actions Limits Annotations to 10.
 
-[Regular Chat GPT Hallucination](https://github.com/edelauna/gpt-review/pull/7/files#diff-a2a171449d862fe29692ce031981047d7ab755ae7f84c707aef80701b3ea0c80R7):
-
-![Screenshot 2023-09-06 172118](https://github.com/edelauna/gpt-review/assets/54631123/a972a0c9-d18d-4a7c-9c69-1f6f7f25da2b)
-
-<sub>Chat GPT providing a recommendation to declare `diff` using `const` instead of `let`, when in fact it is already declared using `const`.</sub>
+# Dependencies
+* [`@actions/core`](https://github.com/actions/toolkit/tree/main/packages/core)
+* [`@actions/exec`](https://github.com/actions/toolkit/tree/main/packages/exec)
+* [`gpt-3-encoder`](https://github.com/latitudegames/GPT-3-Encoder#readme)
+* [`openai`](https://github.com/openai/openai-node#readme)

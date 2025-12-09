@@ -9940,10 +9940,10 @@ var run = function () { return __awaiter(void 0, void 0, void 0, function () {
                     "diff",
                     "origin/".concat(baseRef),
                     "--diff-algorithm=minimal",
-                    "--unified=7" // bumping from 3 to seven to pass more context to the model
+                    "--unified=0" // bumping to 0 - model seems to comment alot on context
                 ];
                 if (headRef) {
-                    diffArgs.splice(2, 0, "origin/".concat(headRef));
+                    diffArgs[1] = "origin/".concat(baseRef, "...origin/").concat(headRef);
                     fetchArgs.splice(2, 0, "refs/heads/".concat(headRef));
                 }
                 return [4 /*yield*/, exec.exec("git", fetchArgs)];
@@ -10002,7 +10002,8 @@ var parse = function (input) {
         }
         else if (until > 0) {
             if (!line.startsWith('-')) { // deleted code seems to confuse the model
-                patch.push({ lineNumber: lineNumber, line: line });
+                var _line = line.startsWith('+') ? line.substring(1) : line; // '+' seem to confuse the model
+                patch.push({ lineNumber: lineNumber, line: _line });
                 lineNumber++;
                 until--;
             }
@@ -10127,6 +10128,29 @@ exports.run = run;
 
 "use strict";
 
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || function (mod) {
+    if (mod && mod.__esModule) return mod;
+    var result = {};
+    if (mod != null) for (var k in mod) if (k !== "default" && Object.prototype.hasOwnProperty.call(mod, k)) __createBinding(result, mod, k);
+    __setModuleDefault(result, mod);
+    return result;
+};
 var __awaiter = (this && this.__awaiter) || function (thisArg, _arguments, P, generator) {
     function adopt(value) { return value instanceof P ? value : new P(function (resolve) { resolve(value); }); }
     return new (P || (P = Promise))(function (resolve, reject) {
@@ -10165,8 +10189,18 @@ var __generator = (this && this.__generator) || function (thisArg, body) {
 };
 Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.run = void 0;
+var core = __importStar(__nccwpck_require__(2186));
 var make_review_1 = __nccwpck_require__(4941);
 var message_manager_1 = __nccwpck_require__(8575);
+var ignoreFiles = function () { return core.getInput("IGNORE_FILES").split(",").filter(function (f) { return f != ''; }); };
+var filesToBeIgnored = function (file) {
+    var ignore = ignoreFiles().filter(function (f) { return file.startsWith(f); });
+    var predicate = ignore.length > 0;
+    if (predicate) {
+        core.info("Skipping analysis of patch, ".concat(file, " matched the following: ").concat(ignore));
+    }
+    return predicate;
+};
 var run = function (input) { return __awaiter(void 0, void 0, void 0, function () {
     var _i, input_1, diff, messages;
     return __generator(this, function (_a) {
@@ -10177,6 +10211,8 @@ var run = function (input) { return __awaiter(void 0, void 0, void 0, function (
             case 1:
                 if (!(_i < input_1.length)) return [3 /*break*/, 4];
                 diff = input_1[_i];
+                if (filesToBeIgnored(diff.fileName))
+                    return [3 /*break*/, 3];
                 messages = (0, message_manager_1.messageManager)(diff);
                 if (!(0, make_review_1.roomForReview)())
                     return [3 /*break*/, 4];
@@ -10269,6 +10305,7 @@ Object.defineProperty(exports, "__esModule", ({ value: true }));
 exports.roomForReview = exports.makeReview = exports.functions = void 0;
 var openai_1 = __importDefault(__nccwpck_require__(47));
 var core = __importStar(__nccwpck_require__(2186));
+var message_manager_1 = __nccwpck_require__(8575);
 var REVIEW_LIMIT = 10;
 var existingReview = 0;
 var openai = new openai_1.default({
@@ -10276,8 +10313,8 @@ var openai = new openai_1.default({
 });
 exports.functions = [
     {
-        name: "make_critical_review",
-        description: "Provide a review of any defects, quality improvements, or suggest an alternative solutions.",
+        name: "provide_critical_review",
+        description: "Provide a critical review, identifying any defects, or suggesting an improvement for quality, readability, performance, error handling, security, or adherence to best practices.",
         parameters: {
             type: "object",
             properties: {
@@ -10291,9 +10328,9 @@ exports.functions = [
                 },
                 file: {
                     type: "string",
-                    description: "Filename the review relates too"
+                    description: "Filename the review relates to"
                 },
-                line: {
+                startLine: {
                     type: "number",
                     description: "The starting line for which the review relates."
                 },
@@ -10302,17 +10339,17 @@ exports.functions = [
                     description: "The end line for which the review relates."
                 }
             },
-            required: ["title", "file", "line", "message"]
+            required: ["title", "message", "file", "startLine"]
         }
     }, {
-        name: "make_review",
-        description: "LGTM",
+        name: "provide_default_review",
+        description: "Provide a default review.",
         parameters: {
             type: "object",
             properties: {
                 message: {
                     type: "string",
-                    description: "LGTM"
+                    description: "Review message, typically \"Looks Good to Me\" (LGTM)."
                 }
             }
         }
@@ -10344,10 +10381,11 @@ var _makeReview = function (response, choice) {
         var message = response.choices[choice].message;
         if (!message.function_call)
             return;
+        (0, message_manager_1.recordResponse)(message.function_call.name);
         if (message.function_call.name != exports.functions[0].name)
             return;
-        var _a = JSON.parse(message.function_call.arguments), title = _a.title, file = _a.file, line = _a.line, endLine = _a.endLine, review = _a.message;
-        core.notice(review, { title: title, file: file, startLine: line, endLine: endLine });
+        var _a = JSON.parse(message.function_call.arguments), title = _a.title, file = _a.file, startLine = _a.startLine, endLine = _a.endLine, review = _a.message;
+        core.notice(review, { title: title, file: file, startLine: startLine, endLine: endLine });
         existingReview++;
     }
     catch (_b) {
@@ -10367,39 +10405,63 @@ exports.roomForReview = roomForReview;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", ({ value: true }));
-exports.messageManager = void 0;
+exports.addSystemMessage = exports.recordResponse = exports.messageManager = void 0;
 var gpt_3_encoder_1 = __nccwpck_require__(1818);
 var make_review_1 = __nccwpck_require__(4941);
 var countTokens = function (input) { return input ? (0, gpt_3_encoder_1.encode)(input).length : 0; };
 var MAX_TOKENS = (16385 / 7 * 6) - countTokens(JSON.stringify(make_review_1.functions));
+var SYSTEM_MESSAGE = {
+    role: "system",
+    content: "As a code peer reviewer, your role is to provide valuable feedback on snippets of code for a GitHub Pull Request. Since you wont always be provided the context for the snippet, your default response is to provide a review stating 'Looks Good to Me' (LGTM)."
+};
+var SYSTEM_HYDRATE_FREQUENCY = 7;
 var messages = [
-    {
-        role: "system",
-        content: "You are a lazy code peer reviewer that typically responds with LGTM, unless it is something critical. " +
-            "Code will be provided to you as a json object consisting of filename, and an array of linenumbers, and lines. " +
-            "Lines begining with '+' are additions, lines beginning with '-' are deletions, all other lines " +
-            "are context lines. Review for any defects, quality improvements, or suggest an alternative solutions."
-    }
+    SYSTEM_MESSAGE
 ];
-var currentToKeNs = countTokens(messages[0].content);
-var messageManager = function (input) {
-    var candidate = JSON.stringify(input);
-    var nextToKeNs = countTokens(candidate);
-    while (messages.length > 2 && (nextToKeNs + currentToKeNs) > MAX_TOKENS) {
+var currentToken = countTokens(messages[0].content);
+var _cycler = function (nextToken) {
+    while (messages.length > 2 && (nextToken + currentToken) > MAX_TOKENS) {
         var prevToKeNs = countTokens(messages[1].content);
         messages.splice(1, 1);
-        currentToKeNs -= prevToKeNs;
+        currentToken -= prevToKeNs;
     }
-    if ((nextToKeNs + currentToKeNs) < MAX_TOKENS) {
-        messages.push({
-            role: "user",
-            content: candidate
-        });
-        currentToKeNs += nextToKeNs;
+};
+var _append = function (nextToken, message) {
+    if ((nextToken + currentToken) < MAX_TOKENS) {
+        messages.push(message);
+        currentToken += nextToken;
     }
+};
+var messageManager = function (input) {
+    var candidate = JSON.stringify(input);
+    var nextToken = countTokens(candidate);
+    _cycler(nextToken);
+    _append(nextToken, {
+        role: "user",
+        content: candidate
+    });
     return messages;
 };
 exports.messageManager = messageManager;
+var responses = 0;
+var recordResponse = function (functionName) {
+    var message = { role: "function", name: functionName, content: "OK" };
+    var nextToken = countTokens(JSON.stringify(message));
+    _cycler(nextToken);
+    _append(nextToken, message);
+    responses++;
+    // keep the system instructions fresh in the message history
+    if (responses % SYSTEM_HYDRATE_FREQUENCY == 0)
+        (0, exports.addSystemMessage)();
+    return messages;
+};
+exports.recordResponse = recordResponse;
+var addSystemMessage = function () {
+    var nextToken = countTokens(SYSTEM_MESSAGE.content);
+    _cycler(nextToken);
+    _append(nextToken, SYSTEM_MESSAGE);
+};
+exports.addSystemMessage = addSystemMessage;
 
 
 /***/ }),
